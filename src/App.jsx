@@ -41,34 +41,48 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // ── Initial session check on mount ──────────────────────────
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      if (session) fetchRole(session.user.id)
-      else setLoading(false)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session)
       if (session) {
-        await fetchRole(session.user.id)
+        fetchRoleAndSet(session)
       } else {
-        setUserRole(null)
+        setSession(null)
         setLoading(false)
       }
     })
 
+    // ── Listen for sign-in / sign-out events ────────────────────
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (session) {
+          // Keep loading=true until BOTH session and role are ready
+          // so we never render with session≠null but role=null
+          setLoading(true)
+          await fetchRoleAndSet(session)
+        } else {
+          // Sign-out: clear everything atomically
+          setSession(null)
+          setUserRole(null)
+          setLoading(false)
+        }
+      }
+    )
+
     return () => subscription.unsubscribe()
   }, [])
 
-  async function fetchRole(userId) {
+  async function fetchRoleAndSet(session) {
     const { data } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', userId)
+      .eq('id', session.user.id)
       .single()
+    // Set session AND role together — single render, no intermediate blank state
+    setSession(session)
     setUserRole(data?.role || null)
     setLoading(false)
   }
+
 
   if (loading || session === undefined) return <LoadingScreen />
 
