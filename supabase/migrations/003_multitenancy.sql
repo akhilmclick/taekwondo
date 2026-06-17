@@ -1,6 +1,7 @@
 -- ============================================================
 -- DojanHub — Migration 003: Multi-Tenancy (Institutes)
 -- Run in Supabase SQL Editor AFTER 001_init.sql and 002_seed.sql
+-- This script is IDEMPOTENT — safe to run multiple times
 -- ============================================================
 
 -- ─── 1. INSTITUTES TABLE ─────────────────────────────────────
@@ -41,7 +42,6 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_institute_id uuid;
 BEGIN
-  -- Parse institute_id from metadata if present
   BEGIN
     v_institute_id := (NEW.raw_user_meta_data->>'institute_id')::uuid;
   EXCEPTION WHEN others THEN
@@ -66,16 +66,12 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ─── 5. MIGRATE EXISTING SEED DATA ───────────────────────────
--- Create a demo institute for the existing seed data
 DO $$
 DECLARE
   demo_institute_id uuid;
   admin_profile_id  uuid := 'a0000000-0000-0000-0000-000000000001';
 BEGIN
-  -- Only run if admin profile exists (seed data was loaded)
   IF EXISTS (SELECT 1 FROM public.profiles WHERE id = admin_profile_id) THEN
-
-    -- Create demo institute
     INSERT INTO public.institutes (id, name, code, owner_id, email)
     VALUES (
       'e0000000-0000-0000-0000-000000000001',
@@ -88,7 +84,6 @@ BEGIN
 
     demo_institute_id := 'e0000000-0000-0000-0000-000000000001';
 
-    -- Backfill institute_id on all existing rows
     UPDATE public.profiles       SET institute_id = demo_institute_id WHERE institute_id IS NULL;
     UPDATE public.coaches        SET institute_id = demo_institute_id WHERE institute_id IS NULL;
     UPDATE public.batches        SET institute_id = demo_institute_id WHERE institute_id IS NULL;
@@ -105,27 +100,40 @@ BEGIN
 END $$;
 
 -- ─── 6. RLS POLICIES (UPDATED FOR MULTI-TENANCY) ─────────────
+-- Drop ALL old policies first — this makes the script fully idempotent
 
 -- ── Institutes ──
+DROP POLICY IF EXISTS "Owner reads own institute"   ON public.institutes;
+DROP POLICY IF EXISTS "Owner updates own institute" ON public.institutes;
+DROP POLICY IF EXISTS "Anyone inserts institute"    ON public.institutes;
+
 CREATE POLICY "Owner reads own institute" ON public.institutes
   FOR SELECT USING (id = get_my_institute_id());
-
 CREATE POLICY "Owner updates own institute" ON public.institutes
   FOR UPDATE USING (owner_id = auth.uid());
-
 CREATE POLICY "Anyone inserts institute" ON public.institutes
-  FOR INSERT WITH CHECK (true);  -- checked in app layer
+  FOR INSERT WITH CHECK (true);
 
 -- ── Profiles ──
 DROP POLICY IF EXISTS "Admin full access profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Users read own profile"     ON public.profiles;
+DROP POLICY IF EXISTS "Users update own profile"   ON public.profiles;
+
 CREATE POLICY "Admin full access profiles" ON public.profiles
   FOR ALL USING (
     get_my_role() = 'admin' AND institute_id = get_my_institute_id()
   );
+CREATE POLICY "Users read own profile" ON public.profiles
+  FOR SELECT USING (id = auth.uid());
+CREATE POLICY "Users update own profile" ON public.profiles
+  FOR UPDATE USING (id = auth.uid());
 
 -- ── Coaches ──
-DROP POLICY IF EXISTS "Admin full access coaches" ON public.coaches;
-DROP POLICY IF EXISTS "Anyone can read coaches" ON public.coaches;
+DROP POLICY IF EXISTS "Admin full access coaches"          ON public.coaches;
+DROP POLICY IF EXISTS "Coach reads own record"             ON public.coaches;
+DROP POLICY IF EXISTS "Anyone can read coaches"            ON public.coaches;
+DROP POLICY IF EXISTS "Student reads coaches in institute" ON public.coaches;
+
 CREATE POLICY "Admin full access coaches" ON public.coaches
   FOR ALL USING (
     get_my_role() = 'admin' AND institute_id = get_my_institute_id()
@@ -136,8 +144,10 @@ CREATE POLICY "Student reads coaches in institute" ON public.coaches
   FOR SELECT USING (institute_id = get_my_institute_id());
 
 -- ── Batches ──
-DROP POLICY IF EXISTS "Admin full access batches" ON public.batches;
-DROP POLICY IF EXISTS "Anyone reads batches" ON public.batches;
+DROP POLICY IF EXISTS "Admin full access batches"              ON public.batches;
+DROP POLICY IF EXISTS "Anyone reads batches"                   ON public.batches;
+DROP POLICY IF EXISTS "Anyone reads batches in own institute"  ON public.batches;
+
 CREATE POLICY "Admin full access batches" ON public.batches
   FOR ALL USING (
     get_my_role() = 'admin' AND institute_id = get_my_institute_id()
@@ -146,9 +156,11 @@ CREATE POLICY "Anyone reads batches in own institute" ON public.batches
   FOR SELECT USING (institute_id = get_my_institute_id());
 
 -- ── Students ──
-DROP POLICY IF EXISTS "Admin full access students" ON public.students;
+DROP POLICY IF EXISTS "Admin full access students"            ON public.students;
 DROP POLICY IF EXISTS "Coach reads students in their batches" ON public.students;
-DROP POLICY IF EXISTS "Student reads own record" ON public.students;
+DROP POLICY IF EXISTS "Student reads own record"              ON public.students;
+DROP POLICY IF EXISTS "Student updates own record"            ON public.students;
+
 CREATE POLICY "Admin full access students" ON public.students
   FOR ALL USING (
     get_my_role() = 'admin' AND institute_id = get_my_institute_id()
@@ -165,9 +177,11 @@ CREATE POLICY "Student updates own record" ON public.students
   FOR UPDATE USING (profile_id = auth.uid());
 
 -- ── Schedules ──
-DROP POLICY IF EXISTS "Admin full access schedules" ON public.schedules;
-DROP POLICY IF EXISTS "Coach reads own batch schedules" ON public.schedules;
-DROP POLICY IF EXISTS "Student reads own schedule" ON public.schedules;
+DROP POLICY IF EXISTS "Admin full access schedules"      ON public.schedules;
+DROP POLICY IF EXISTS "Coach reads own batch schedules"  ON public.schedules;
+DROP POLICY IF EXISTS "Student reads own schedule"       ON public.schedules;
+DROP POLICY IF EXISTS "Institute members read schedules" ON public.schedules;
+
 CREATE POLICY "Admin full access schedules" ON public.schedules
   FOR ALL USING (
     get_my_role() = 'admin' AND institute_id = get_my_institute_id()
@@ -176,9 +190,11 @@ CREATE POLICY "Institute members read schedules" ON public.schedules
   FOR SELECT USING (institute_id = get_my_institute_id());
 
 -- ── Attendance ──
-DROP POLICY IF EXISTS "Admin full access attendance" ON public.attendance_logs;
+DROP POLICY IF EXISTS "Admin full access attendance"                   ON public.attendance_logs;
 DROP POLICY IF EXISTS "Coach insert/read attendance for their batches" ON public.attendance_logs;
-DROP POLICY IF EXISTS "Student reads own attendance" ON public.attendance_logs;
+DROP POLICY IF EXISTS "Coach manages attendance in their batches"      ON public.attendance_logs;
+DROP POLICY IF EXISTS "Student reads own attendance"                   ON public.attendance_logs;
+
 CREATE POLICY "Admin full access attendance" ON public.attendance_logs
   FOR ALL USING (
     get_my_role() = 'admin' AND institute_id = get_my_institute_id()
@@ -195,6 +211,7 @@ CREATE POLICY "Student reads own attendance" ON public.attendance_logs
 -- ── Payments ──
 DROP POLICY IF EXISTS "Admin full access payments" ON public.payments;
 DROP POLICY IF EXISTS "Student reads own payments" ON public.payments;
+
 CREATE POLICY "Admin full access payments" ON public.payments
   FOR ALL USING (
     get_my_role() = 'admin' AND institute_id = get_my_institute_id()
@@ -203,9 +220,11 @@ CREATE POLICY "Student reads own payments" ON public.payments
   FOR SELECT USING (student_id = get_my_student_id());
 
 -- ── Belt History ──
-DROP POLICY IF EXISTS "Admin full access belt_history" ON public.belt_history;
+DROP POLICY IF EXISTS "Admin full access belt_history"              ON public.belt_history;
 DROP POLICY IF EXISTS "Coach reads belt history for their students" ON public.belt_history;
-DROP POLICY IF EXISTS "Student reads own belt history" ON public.belt_history;
+DROP POLICY IF EXISTS "Coach reads belt history in institute"       ON public.belt_history;
+DROP POLICY IF EXISTS "Student reads own belt history"              ON public.belt_history;
+
 CREATE POLICY "Admin full access belt_history" ON public.belt_history
   FOR ALL USING (
     get_my_role() = 'admin' AND institute_id = get_my_institute_id()
