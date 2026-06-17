@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { getStudents, getBatches, createStudent } from '../../lib/queries'
+import { getStudents, getBatches } from '../../lib/queries'
+import { useAuth } from '../../lib/AuthContext'
 import TopBar from '../../components/ui/TopBar'
 import BottomNav from '../../components/ui/BottomNav'
 import Avatar from '../../components/ui/Avatar'
@@ -34,21 +35,22 @@ function AddStudentModal({ batches, onClose, onSaved }) {
       const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
-        options: { data: { full_name: form.full_name, role: 'student' } }
+        options: { data: { full_name: form.full_name, role: 'student', institute_id: instituteId } }
       })
       if (signUpErr) throw signUpErr
 
       const profileId = signUpData.user?.id
       if (!profileId) throw new Error('Could not create user account')
 
-      // Update profile
+      // Update profile with institute_id
       await supabase.from('profiles').upsert({
-        id: profileId, full_name: form.full_name, phone: form.phone, role: 'student'
+        id: profileId, full_name: form.full_name, phone: form.phone, role: 'student', institute_id: instituteId
       })
 
       // Create student record
       await supabase.from('students').insert({
         profile_id: profileId,
+        institute_id: instituteId,
         dob: form.dob || null, gender: form.gender, blood_group: form.blood_group,
         parent_name: form.parent_name, parent_phone: form.parent_phone,
         address: form.address, emergency_contact: form.emergency_contact,
@@ -136,6 +138,7 @@ function AddStudentModal({ batches, onClose, onSaved }) {
 
 export default function AdminStudents() {
   const navigate = useNavigate()
+  const { instituteId } = useAuth()
   const [profile, setProfile] = useState(null)
   const [students, setStudents] = useState([])
   const [batches, setBatches] = useState([])
@@ -146,15 +149,16 @@ export default function AdminStudents() {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
+    if (!instituteId) return
     setLoading(true)
     const [s, b] = await Promise.all([
-      getStudents({ search, status: filterStatus, belt: filterBelt }),
-      getBatches()
+      getStudents({ search, status: filterStatus, belt: filterBelt, instituteId }),
+      getBatches(instituteId)
     ])
     setStudents(s)
     setBatches(b)
     setLoading(false)
-  }, [search, filterStatus, filterBelt])
+  }, [search, filterStatus, filterBelt, instituteId])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {

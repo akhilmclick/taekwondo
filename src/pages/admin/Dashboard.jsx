@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getDashboardStats, getRecentActivity } from '../../lib/queries'
+import { useAuth } from '../../lib/AuthContext'
 import TopBar from '../../components/ui/TopBar'
 import BottomNav from '../../components/ui/BottomNav'
 import StatCard from '../../components/ui/StatCard'
@@ -9,25 +10,28 @@ import { formatDate } from '../../lib/utils'
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
+  const { instituteId } = useAuth()
   const [profile, setProfile] = useState(null)
-  const [stats, setStats] = useState(null)
+  const [stats, setStats]     = useState(null)
   const [activity, setActivity] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setProfile(prof)
-      const [s, a] = await Promise.all([getDashboardStats(), getRecentActivity()])
-      setStats(s)
-      setActivity(a)
+      if (instituteId) {
+        const [s, a] = await Promise.all([getDashboardStats(instituteId), getRecentActivity(instituteId)])
+        setStats(s); setActivity(a)
+      }
       setLoading(false)
     }
     load()
-  }, [])
+  }, [instituteId])
 
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+
 
   const quickActions = [
     { icon: '👤', label: 'Add Student', color: 'rgba(214,40,40,0.15)', iconColor: 'var(--red)', action: () => navigate('/admin/students') },

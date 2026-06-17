@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { getPayments } from '../../lib/queries'
+import { useAuth } from '../../lib/AuthContext'
 import TopBar from '../../components/ui/TopBar'
 import BottomNav from '../../components/ui/BottomNav'
 import { formatDate } from '../../lib/utils'
@@ -217,6 +218,7 @@ function EditPaymentModal({ payment, onClose, onSaved }) {
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────
 export default function AdminFees() {
+  const { instituteId } = useAuth()
   const [myProfile, setMyProfile] = useState(null)
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -232,11 +234,11 @@ export default function AdminFees() {
     })
   }, [])
 
-  useEffect(() => { load() }, [month, year])
+  useEffect(() => { if (instituteId) load() }, [month, year, instituteId])
 
   async function load() {
     setLoading(true)
-    const data = await getPayments({ month, year })
+    const data = await getPayments({ month, year, instituteId })
     setPayments(data)
     setLoading(false)
   }

@@ -5,7 +5,7 @@ const ADMIN_TABS = [
   { label: 'Students',   icon: '👥', path: '/admin/students' },
   { label: 'Attendance', icon: '✓',  path: '/admin/attendance' },
   { label: 'Fees',       icon: '₹',  path: '/admin/fees' },
-  { label: 'Schedule',   icon: '📅', path: '/admin/schedule' },
+  { label: 'Institute',  icon: '🏟️', path: '/admin/institute' },
 ]
 
 const COACH_TABS = [
@@ -15,9 +15,11 @@ const COACH_TABS = [
 ]
 
 const STUDENT_TABS = [
-  { label: 'Home',     icon: '⌂',  path: '/student' },
-  { label: 'Profile',  icon: '👤', path: '/student/profile' },
-  { label: 'Schedule', icon: '📅', path: '/student/schedule' },
+  { label: 'Home',       icon: '⌂',  path: '/student' },
+  { label: 'Attendance', icon: '✓',  path: '/student/attendance' },
+  { label: 'Fees',       icon: '₹',  path: '/student/fees' },
+  { label: 'Schedule',   icon: '📅', path: '/student/schedule' },
+  { label: 'Profile',    icon: '👤', path: '/student/profile' },
 ]
 
 export default function BottomNav({ role }) {

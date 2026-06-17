@@ -1,221 +1,363 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-function TKDSilhouette() {
-  return (
-    <svg viewBox="0 0 200 320" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-55%)', width: 260, height: 360, opacity: 0.08, pointerEvents: 'none' }} fill="#D62828">
-      <circle cx="100" cy="32" r="22" />
-      <path d="M78 54 Q100 70 122 54 L130 140 Q100 155 70 140 Z" />
-      <path d="M78 68 Q50 55 32 72 Q20 80 28 90 Q36 100 48 88 Q60 76 82 80 Z" />
-      <path d="M122 68 Q148 55 165 45 Q178 36 184 48 Q188 58 176 64 Q162 68 144 72 Q132 74 118 80 Z" />
-      <path d="M88 140 Q80 185 75 210 Q72 230 80 235 Q92 238 96 225 Q100 210 104 190 Q108 170 100 145 Z" />
-      <path d="M112 140 Q125 145 148 135 Q168 126 185 118 Q196 112 194 100 Q192 88 178 92 Q162 98 144 110 Q126 122 110 135 Z" />
-      <ellipse cx="190" cy="108" rx="14" ry="8" transform="rotate(-15 190 108)" />
-    </svg>
-  )
+// Generate a random 6-character alphanumeric invite code
+function generateCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase()
 }
 
 export default function Login() {
-  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'forgot'
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [fullName, setFullName] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-
-  function switchMode(m) {
-    setMode(m)
-    setError('')
-    setSuccess('')
-  }
-
-  async function handleLogin(e) {
-    e.preventDefault()
-    setError(''); setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setError(error.message)
-    setLoading(false)
-  }
-
-  async function handleSignup(e) {
-    e.preventDefault()
-    setError(''); setSuccess(''); setLoading(true)
-    if (!fullName.trim()) { setError('Please enter your full name.'); setLoading(false); return }
-    if (password.length < 6) { setError('Password must be at least 6 characters.'); setLoading(false); return }
-
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: { data: { full_name: fullName.trim(), role: 'student' } },
-      })
-
-      console.log('Signup response:', { data, error })
-
-      if (error) {
-        setError(error.message)
-      } else if (data?.user && !data.session) {
-        // Email confirmation is ON — user needs to confirm email
-        setError('⚠️ Email confirmation required. Go to Supabase → Authentication → Providers → Email → disable "Confirm email", then try again. Or check your inbox for a confirmation link.')
-      } else if (data?.session) {
-        // Success — auto-confirmed
-        setSuccess('✅ Account created! Redirecting…')
-      } else {
-        setError('Something went wrong. Check the browser console for details.')
-      }
-    } catch (err) {
-      console.error('Signup exception:', err)
-      setError(err.message || 'An unexpected error occurred.')
-    }
-    setLoading(false)
-  }
-
-  async function handleForgot(e) {
-    e.preventDefault()
-    setError(''); setLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
-    if (error) setError(error.message)
-    else setSuccess('✅ Reset link sent — check your email.')
-    setLoading(false)
-  }
+  // 'login' | 'institute-signup' | 'student-signup'
+  const [view, setView] = useState('login')
 
   return (
-    <div style={{
-      minHeight: '100dvh',
-      background: 'var(--bg)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '24px 24px 40px',
-      position: 'relative',
-      overflow: 'hidden',
-    }}>
-      <TKDSilhouette />
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 70% 70% at 50% 40%, transparent 50%, rgba(0,0,0,0.6) 100%)', pointerEvents: 'none' }} />
-
-      {/* Logo */}
-      <div style={{ textAlign: 'center', marginBottom: 8, position: 'relative', zIndex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4 }}>
-          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, color: 'var(--gold)', letterSpacing: '0.04em', lineHeight: 1 }}>DOJAN</span>
-          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, color: 'var(--red)', letterSpacing: '0.04em', lineHeight: 1 }}>HUB</span>
+    <div className="page-content no-nav no-topbar" style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
+      {/* Header */}
+      <div style={{ padding: '48px 24px 24px', textAlign: 'center' }}>
+        <div className="logo-text" style={{ justifyContent: 'center', marginBottom: 6 }}>
+          <span className="logo-dojan" style={{ fontSize: 48 }}>DOJAN</span>
+          <span className="logo-hub"   style={{ fontSize: 48 }}>HUB</span>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.2em', textTransform: 'uppercase', marginTop: 4 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
           Academy Management
         </div>
       </div>
 
-      <div style={{ width: 60, height: 2, background: 'var(--gold)', borderRadius: 2, margin: '16px auto 28px', opacity: 0.6 }} />
+      {/* Tab switcher (only on login) */}
+      {view === 'login' && (
+        <div style={{ padding: '0 24px 4px', display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1, height: 2, background: 'var(--gold)', borderRadius: 2 }} />
+          <div style={{ flex: 1, height: 2, background: 'var(--border)', borderRadius: 2 }} />
+        </div>
+      )}
 
-      {/* Tab switcher (Login / Sign Up) */}
-      <div style={{ display: 'flex', background: 'var(--bg-card)', borderRadius: 12, padding: 4, marginBottom: 24, position: 'relative', zIndex: 1, width: '100%', maxWidth: 380 }}>
-        {[['login', 'Log In'], ['signup', 'Sign Up']].map(([m, label]) => (
-          <button key={m} onClick={() => switchMode(m)}
-            style={{
-              flex: 1, height: 40, borderRadius: 9, fontSize: 14, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s',
-              background: mode === m ? 'var(--bg-card-2)' : 'transparent',
-              color: mode === m ? 'var(--text-primary)' : 'var(--text-muted)',
-              border: mode === m ? '1px solid var(--border-light)' : '1px solid transparent',
-            }}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Form */}
-      <div style={{ width: '100%', maxWidth: 380, position: 'relative', zIndex: 1 }}>
-
-        {success && (
-          <div style={{ background: 'rgba(46,204,113,0.1)', border: '1px solid rgba(46,204,113,0.3)', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: 'var(--success)', marginBottom: 16 }}>
-            {success}
-          </div>
-        )}
-
-        {/* ── LOGIN ── */}
-        {mode === 'login' && (
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div className="input-wrap">
-              <input id="login-email" className="input-field" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
-              <label className="input-label" htmlFor="login-email">Email address</label>
-            </div>
-            <div className="input-wrap">
-              <input id="login-password" className="input-field" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
-              <label className="input-label" htmlFor="login-password">Password</label>
-            </div>
-            {error && <div className="error-msg">{error}</div>}
-            <button type="submit" className="btn btn-primary" disabled={loading} id="login-submit">
-              {loading ? <Spinner /> : 'Enter the Dojang'}
-            </button>
-            <button type="button" onClick={() => switchMode('forgot')}
-              style={{ background: 'none', color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer', textAlign: 'center' }}>
-              Forgot password?
-            </button>
-          </form>
-        )}
-
-        {/* ── SIGN UP ── */}
-        {mode === 'signup' && (
-          <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div className="input-wrap">
-              <input id="signup-name" className="input-field" type="text" placeholder="Full Name" value={fullName} onChange={e => setFullName(e.target.value)} required autoComplete="name" />
-              <label className="input-label" htmlFor="signup-name">Full Name</label>
-            </div>
-            <div className="input-wrap">
-              <input id="signup-email" className="input-field" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
-              <label className="input-label" htmlFor="signup-email">Email address</label>
-            </div>
-            <div className="input-wrap">
-              <input id="signup-password" className="input-field" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="new-password" minLength={6} />
-              <label className="input-label" htmlFor="signup-password">Password (min 6 chars)</label>
-            </div>
-            {error && <div className="error-msg">{error}</div>}
-            <button type="submit" className="btn btn-primary" disabled={loading} id="signup-submit">
-              {loading ? <Spinner /> : 'Create Account'}
-            </button>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.6 }}>
-              New accounts are created as <span style={{ color: 'var(--gold)' }}>Student</span> by default.<br />
-              An Admin can change your role from the dashboard.
-            </div>
-          </form>
-        )}
-
-        {/* ── FORGOT PASSWORD ── */}
-        {mode === 'forgot' && (
-          <form onSubmit={handleForgot} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ marginBottom: 4 }}>
-              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Reset Password</div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Enter your email to receive a reset link</div>
-            </div>
-            <div className="input-wrap">
-              <input id="forgot-email" className="input-field" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
-              <label className="input-label" htmlFor="forgot-email">Email address</label>
-            </div>
-            {error && <div className="error-msg">{error}</div>}
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? <Spinner /> : 'Send Reset Link'}
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={() => switchMode('login')}>
-              Back to Log In
-            </button>
-          </form>
-        )}
-      </div>
-
-      <div style={{ position: 'absolute', bottom: 20, fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', zIndex: 1 }}>
-        DojanHub © {new Date().getFullYear()} · Powered by discipline
+      <div style={{ flex: 1, padding: '16px 24px 40px' }}>
+        {view === 'login'            && <LoginForm onSwitchInstitute={() => setView('institute-signup')} onSwitchStudent={() => setView('student-signup')} />}
+        {view === 'institute-signup' && <InstituteSignup onBack={() => setView('login')} />}
+        {view === 'student-signup'   && <StudentSignup   onBack={() => setView('login')} />}
       </div>
     </div>
   )
 }
 
-function Spinner() {
+// ─── LOGIN FORM ───────────────────────────────────────────────
+function LoginForm({ onSwitchInstitute, onSwitchStudent }) {
+  const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError]       = useState('')
+  const [loading, setLoading]   = useState(false)
+
+  async function handleLogin(e) {
+    e.preventDefault()
+    setLoading(true); setError('')
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) { setError(error.message); setLoading(false) }
+  }
+
   return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
-      Please wait…
-    </span>
+    <div>
+      <h1 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, marginBottom: 4 }}>Welcome Back</h1>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 28 }}>Sign in to your account</p>
+
+      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="input-wrap">
+          <input id="login-email" className="input-field" type="email" placeholder="Email"
+            value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
+          <label className="input-label" htmlFor="login-email">Email</label>
+        </div>
+        <div className="input-wrap">
+          <input id="login-password" className="input-field" type="password" placeholder="Password"
+            value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
+          <label className="input-label" htmlFor="login-password">Password</label>
+        </div>
+        {error && <div className="error-msg">{error}</div>}
+        <button type="submit" className="btn btn-primary" style={{ marginTop: 4 }} disabled={loading} id="login-btn">
+          {loading ? 'Signing in…' : 'Sign In'}
+        </button>
+      </form>
+
+      {/* Divider */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0' }}>
+        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>NEW ACCOUNT</span>
+        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <button className="btn btn-secondary" style={{ flexDirection: 'column', height: 'auto', padding: '14px 12px', gap: 4 }}
+          onClick={onSwitchInstitute} id="institute-signup-btn">
+          <span style={{ fontSize: 22 }}>🏟️</span>
+          <span style={{ fontSize: 12, fontWeight: 600 }}>Institute</span>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3 }}>Register your academy</span>
+        </button>
+        <button className="btn btn-secondary" style={{ flexDirection: 'column', height: 'auto', padding: '14px 12px', gap: 4 }}
+          onClick={onSwitchStudent} id="student-signup-btn">
+          <span style={{ fontSize: 22 }}>🥋</span>
+          <span style={{ fontSize: 12, fontWeight: 600 }}>Student</span>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3 }}>Join your academy</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── INSTITUTE SIGNUP ─────────────────────────────────────────
+function InstituteSignup({ onBack }) {
+  const [form, setForm] = useState({ academyName: '', name: '', email: '', password: '' })
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState('')
+  const [success, setSuccess] = useState(null)
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (form.password.length < 6) { setError('Password must be at least 6 characters'); return }
+    setLoading(true); setError('')
+
+    try {
+      // 1. Create auth user
+      const { data: auth, error: authErr } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: { data: { full_name: form.name, role: 'admin' } },
+      })
+      if (authErr) throw authErr
+      if (!auth.user) throw new Error('Account creation failed. Please try again.')
+
+      // 2. Create institute with a unique code (retry if collision)
+      let institute = null
+      let attempts = 0
+      while (!institute && attempts < 5) {
+        const code = generateCode()
+        const { data, error: instErr } = await supabase.from('institutes').insert({
+          name: form.academyName,
+          code,
+          owner_id: auth.user.id,
+          email: form.email,
+        }).select().single()
+        if (!instErr) institute = data
+        attempts++
+      }
+      if (!institute) throw new Error('Failed to create institute. Please try again.')
+
+      // 3. Update profile with institute_id + role
+      await supabase.from('profiles').update({
+        full_name: form.name,
+        role: 'admin',
+        institute_id: institute.id,
+      }).eq('id', auth.user.id)
+
+      setSuccess({ code: institute.code, name: form.academyName })
+
+    } catch (err) {
+      setError(err.message)
+      setLoading(false)
+    }
+  }
+
+  // ── Success screen with institute code ───────────────────────
+  if (success) {
+    return (
+      <div style={{ textAlign: 'center', paddingTop: 20 }}>
+        <div style={{ fontSize: 56, marginBottom: 12 }}>🏟️</div>
+        <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, marginBottom: 4 }}>Academy Created!</h2>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>{success.name}</p>
+
+        {/* Institute Code Card */}
+        <div style={{
+          background: 'var(--bg-card-2)', border: '1px solid var(--gold)',
+          borderRadius: 16, padding: '20px 24px', marginBottom: 24,
+        }}>
+          <div style={{ fontSize: 11, color: 'var(--gold)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 8 }}>
+            Your Institute Code
+          </div>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 48, color: 'var(--text-primary)', letterSpacing: '0.2em' }}>
+            {success.code}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>
+            Share this code with your students.<br />They'll use it to join your academy.
+          </div>
+        </div>
+
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 20 }}>
+          Check your email to confirm your account, then sign in below.
+        </div>
+        <button className="btn btn-primary" onClick={onBack} id="back-to-login-btn">
+          ← Back to Sign In
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <button onClick={onBack} style={{ background: 'none', color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+        ← Back
+      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+        <span style={{ fontSize: 28 }}>🏟️</span>
+        <h1 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26 }}>Register Your Institute</h1>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
+        Create your academy account. You'll get an invite code to share with students.
+      </p>
+
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="input-wrap">
+          <input id="inst-academy" className="input-field" type="text" placeholder="Academy Name"
+            value={form.academyName} onChange={set('academyName')} required />
+          <label className="input-label" htmlFor="inst-academy">Academy / Institute Name</label>
+        </div>
+        <div className="input-wrap">
+          <input id="inst-name" className="input-field" type="text" placeholder="Your Full Name"
+            value={form.name} onChange={set('name')} required />
+          <label className="input-label" htmlFor="inst-name">Your Full Name</label>
+        </div>
+        <div className="input-wrap">
+          <input id="inst-email" className="input-field" type="email" placeholder="Email"
+            value={form.email} onChange={set('email')} required autoComplete="email" />
+          <label className="input-label" htmlFor="inst-email">Email</label>
+        </div>
+        <div className="input-wrap">
+          <input id="inst-password" className="input-field" type="password" placeholder="Password"
+            value={form.password} onChange={set('password')} required autoComplete="new-password" />
+          <label className="input-label" htmlFor="inst-password">Password (min 6 chars)</label>
+        </div>
+        {error && <div className="error-msg">{error}</div>}
+        <button type="submit" className="btn btn-gold" disabled={loading} id="create-institute-btn">
+          {loading ? 'Creating Academy…' : '🏟️ Create Institute'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+// ─── STUDENT SIGNUP ───────────────────────────────────────────
+function StudentSignup({ onBack }) {
+  const [form, setForm] = useState({ name: '', email: '', password: '', code: '' })
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState('')
+  const [success, setSuccess] = useState(null)
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (form.password.length < 6) { setError('Password must be at least 6 characters'); return }
+    setLoading(true); setError('')
+
+    try {
+      // 1. Validate institute code
+      const code = form.code.trim().toUpperCase()
+      const { data: institute, error: instErr } = await supabase
+        .from('institutes')
+        .select('id, name')
+        .eq('code', code)
+        .single()
+      if (instErr || !institute) throw new Error(`No academy found with code "${code}". Check with your coach.`)
+
+      // 2. Create auth user with institute_id in metadata
+      const { data: auth, error: authErr } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: { data: { full_name: form.name, role: 'student', institute_id: institute.id } },
+      })
+      if (authErr) throw authErr
+      if (!auth.user) throw new Error('Account creation failed. Please try again.')
+
+      // 3. Update profile + create student record
+      await Promise.all([
+        supabase.from('profiles').update({
+          full_name: form.name,
+          role: 'student',
+          institute_id: institute.id,
+        }).eq('id', auth.user.id),
+
+        supabase.from('students').insert({
+          profile_id: auth.user.id,
+          institute_id: institute.id,
+          join_date: new Date().toISOString().split('T')[0],
+          status: 'active',
+        }),
+      ])
+
+      setSuccess({ academyName: institute.name })
+
+    } catch (err) {
+      setError(err.message)
+      setLoading(false)
+    }
+  }
+
+  if (success) {
+    return (
+      <div style={{ textAlign: 'center', paddingTop: 20 }}>
+        <div style={{ fontSize: 56, marginBottom: 12 }}>🥋</div>
+        <h2 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, marginBottom: 4 }}>You're In!</h2>
+        <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16 }}>
+          Joined <strong style={{ color: 'var(--gold)' }}>{success.academyName}</strong>
+        </p>
+        <div style={{
+          background: 'rgba(46,204,113,0.1)', border: '1px solid rgba(46,204,113,0.3)',
+          borderRadius: 12, padding: 16, marginBottom: 24, fontSize: 13, color: 'var(--success)', lineHeight: 1.6,
+        }}>
+          Your account is ready. Your coach will assign you to a batch and fill in your training details.
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 20 }}>
+          Check your email to confirm, then sign in.
+        </div>
+        <button className="btn btn-primary" onClick={onBack} id="student-back-login-btn">
+          ← Sign In Now
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <button onClick={onBack} style={{ background: 'none', color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+        ← Back
+      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+        <span style={{ fontSize: 28 }}>🥋</span>
+        <h1 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26 }}>Join Your Academy</h1>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
+        Enter the Institute Code given by your coach to join your academy.
+      </p>
+
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Institute Code — most prominent */}
+        <div style={{ position: 'relative' }}>
+          <input id="student-code" className="input-field" type="text"
+            placeholder="Institute Code"
+            value={form.code}
+            onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+            maxLength={6} required
+            style={{ textTransform: 'uppercase', letterSpacing: '0.2em', fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, textAlign: 'center' }}
+          />
+          <label className="input-label" htmlFor="student-code" style={{ textAlign: 'center', left: 0, right: 0 }}>Institute Code (e.g. TKD001)</label>
+        </div>
+
+        <div className="input-wrap">
+          <input id="student-name" className="input-field" type="text" placeholder="Your Full Name"
+            value={form.name} onChange={set('name')} required />
+          <label className="input-label" htmlFor="student-name">Full Name</label>
+        </div>
+        <div className="input-wrap">
+          <input id="student-email" className="input-field" type="email" placeholder="Email"
+            value={form.email} onChange={set('email')} required autoComplete="email" />
+          <label className="input-label" htmlFor="student-email">Email</label>
+        </div>
+        <div className="input-wrap">
+          <input id="student-password" className="input-field" type="password" placeholder="Password"
+            value={form.password} onChange={set('password')} required autoComplete="new-password" />
+          <label className="input-label" htmlFor="student-password">Password (min 6 chars)</label>
+        </div>
+        {error && <div className="error-msg">{error}</div>}
+        <button type="submit" className="btn btn-primary" disabled={loading} id="join-academy-btn">
+          {loading ? 'Joining…' : '🥋 Join Academy'}
+        </button>
+      </form>
+    </div>
   )
 }
